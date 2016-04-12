@@ -64,10 +64,15 @@ class attentionModel(object):
 		self.Ws = theano.shared(0.2 * numpy.random.uniform(-1.0,1.0,(nh,nh)).astype(theano.config.floatX))
 
 		# output
-		#self.Wo = theano.shared(0.2 * numpy.random.uniform(-1.0,1.0,()).astype(theano.config.floatX))
+		self.Wo = theano.shared(0.2 * numpy.random.uniform(-1.0,1.0,(nc,nh)).astype(theano.config.floatX))
+		self.Uo = theano.shared(0.2 * numpy.random.uniform(-1.0,1.0,(2*nh,nh)).astype(theano.config.floatX))
+		self.Vo = theano.shared(0.2 * numpy.random.uniform(-1.0,1.0,(2*nh,nh)).astype(theano.config.floatX))
+		self.Co = theano.shared(0.2 * numpy.random.uniform(-1.0,1.0,(2*nh,2*nh)).astype(theano.config.floatX))
+
+		self.maxOut = theano.shared(0.2 * numpy.random.uniform(-1.0,1.0,(2*nh,nh)).astype(theano.config.floatX))
 
 		# bundle
-		self.params = [self.emb, self.emby, self.forwardW, self.forwardWz, self.forwardWr, self.forwardU, self.forwardUz, self.forwardUr, self.backwardW, self.backwardWz, self.backwardWr, self.backwardU, self.backwardUz, self.backwardUr, self.fW, self.fWz, self.fWr, self.fU, self.fUz, self.fUr, self.fC, self.fCz, self.fCr, self.va, self.Wa, self.Ua, self.Ws, self.forwardh0, self.backwardh0]
+		self.params = [self.emb, self.emby, self.forwardW, self.forwardWz, self.forwardWr, self.forwardU, self.forwardUz, self.forwardUr, self.backwardW, self.backwardWz, self.backwardWr, self.backwardU, self.backwardUz, self.backwardUr, self.fW, self.fWz, self.fWr, self.fU, self.fUz, self.fUr, self.fC, self.fCz, self.fCr, self.va, self.Wa, self.Ua, self.Ws, self.forwardh0, self.backwardh0, self.Wo, self.Uo, self.Vo, self.Co, self.maxOut]
 
 		x_e = T.imatrix()
 		x_c = T.imatrix()
@@ -100,7 +105,7 @@ class attentionModel(object):
 			
 			eij,u = theano.scan(fn=lambda h_j, stm1:T.dot(self.va.T,T.tanh(T.dot(self.Wa,stm1) + T.dot(self.Ua,h_j))), sequences=hid, non_sequences=s_tm1, outputs_info=None) # eij is of length Tx (length of english sentence)
 
-			#eij = T.dot(self.va,T.tanh(T.dot(self.Wa,s_tm1) + T.dot(self.Ua,hid.T)))
+			#eij = T.dot(self.va,T.tanh(T.dot(self.Wa,s_tm1) + T.dot(self.Ua,hid.T))) # shawn's implementation
 
 			aij = T.nnet.softmax(eij)[0] # aij is of length Tx
 			
@@ -110,14 +115,13 @@ class attentionModel(object):
 			sbar = T.tanh(T.dot(self.emby,y_t) + T.dot(self.fU,(ri*s_tm1)) + T.dot(self.fC,ci))
 			si = (1-zi)*s_tm1 + zi*sbar
 			
-			return si
+			return si,ci
 			#return [y_t.shape,s_tm1,s_tm1.shape,hid.shape]
 
-		rsi,_ = theano.scan(fn=decoder, sequences=x_c, non_sequences=finalH, outputs_info=T.tanh(T.dot(self.Ws,backwardH[0])))
-		
-		self.train = theano.function(inputs=[x_e,x_c],outputs=[finalH,rsi],on_unused_input='ignore')
-       
+		[rsi,rci],_ = theano.scan(fn=decoder, sequences=x_c, non_sequences=finalH, outputs_info=[T.tanh(T.dot(self.Ws,backwardH[0])),None])
 
+		tbar,_ = theano.scan(fn=lambda sm1,ym1,ci: T.dot(self.Uo,sm1) + T.dot(self.Vo,T.dot(self.emby,ym1)) + T.dot(self.Co,ci),sequences=[dict(input=rsi, taps=[-1]),dict(input=x_c, taps=[-1]),rci],outputs_info=None,non_sequences=None)
 
+		ti = T.dot(tbar,self.maxOut) # assume maxout is linear first
 
-
+		self.train = theano.function(inputs=[x_e,x_c],outputs=[finalH,rsi,rci,ti],on_unused_input='ignore')
