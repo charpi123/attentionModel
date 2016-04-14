@@ -109,7 +109,7 @@ class attentionModel(object):
 
 			aij = T.nnet.softmax(eij)[0] # aij is of length Tx
 			
-			ci = T.dot(aij,hid) # ci is of length 2*nh dimensions
+			ci = T.dot(aij,hid) # ci is of length 2*nh dimensions, shouldn't this be the sum?
 			ri = T.nnet.sigmoid(T.dot(self.fWr,T.dot(self.emby,y_t)) + T.dot(self.fUr,s_tm1) + T.dot(self.fCr,ci))
 			zi = T.nnet.sigmoid(T.dot(self.fWz,T.dot(self.emby,y_t)) + T.dot(self.fUz,s_tm1) + T.dot(self.fCz,ci))
 			sbar = T.tanh(T.dot(self.emby,y_t) + T.dot(self.fU,(ri*s_tm1)) + T.dot(self.fC,ci))
@@ -121,6 +121,8 @@ class attentionModel(object):
 		[rsi,rci],_ = theano.scan(fn=decoder, sequences=x_c, non_sequences=finalH, outputs_info=[T.tanh(T.dot(self.Ws,backwardH[0])),None])
 
 		tbar,_ = theano.scan(fn=lambda sm1,ym1,ci: T.dot(self.Uo,sm1) + T.dot(self.Vo,T.dot(self.emby,ym1)) + T.dot(self.Co,ci),sequences=[dict(input=rsi, taps=[-1]),dict(input=x_c, taps=[-1]),rci],outputs_info=None,non_sequences=None)
+
+		# reshape matrix to Tx2xl tensor, then compare across the '2' axis and get T.max(axis=1).
 
 		ti = T.dot(tbar,self.maxOut) # assume maxout is linear first
 
