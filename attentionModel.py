@@ -124,6 +124,54 @@ class attentionModel(object):
 
 		# reshape matrix to Tx2xl tensor, then compare across the '2' axis and get T.max(axis=1).
 
-		ti = T.dot(tbar,self.maxOut) # assume maxout is linear first
+		ti_temp = T.reshape(tbar,(tbar.shape[0],tbar.shape[1]/2,2))
+		ti = T.max(ti_temp,axis=2)[0]
 
-		self.train = theano.function(inputs=[x_e,x_c],outputs=[finalH,rsi,rci,ti],on_unused_input='ignore')
+		self.train = theano.function(inputs=[x_e,x_c],outputs=[finalH,rsi,tbar,ti_temp,ti],on_unused_input='ignore')
+
+"""
+
+def concatenate(tensor_list, axis=0):
+    Alternative implementation of `theano.tensor.concatenate`.
+    This function does exactly the same thing, but contrary to Theano's own
+    implementation, the gradient is implemented on the GPU.
+    Backpropagating through `theano.tensor.concatenate` yields slowdowns
+    because the inverse operation (splitting) needs to be done on the CPU.
+    This implementation does not have that problem.
+    :usage:
+        >>> x, y = theano.tensor.matrices('x', 'y')
+        >>> c = concatenate([x, y], axis=1)
+    :parameters:
+        - tensor_list : list
+            list of Theano tensor expressions that should be concatenated.
+        - axis : int
+            the tensors will be joined along this axis.
+    :returns:
+        - out : tensor
+            the concatenated tensor expression.
+ 
+    concat_size = sum(tt.shape[axis] for tt in tensor_list)
+
+    output_shape = ()
+    for k in range(axis):
+        output_shape += (tensor_list[0].shape[k],)
+    output_shape += (concat_size,)
+    for k in range(axis + 1, tensor_list[0].ndim):
+        output_shape += (tensor_list[0].shape[k],)
+
+    out = tensor.zeros(output_shape)
+    offset = 0
+    for tt in tensor_list:
+        indices = ()
+        for k in range(axis):
+            indices += (slice(None),)
+        indices += (slice(offset, offset + tt.shape[axis]),)
+        for k in range(axis + 1, tensor_list[0].ndim):
+            indices += (slice(None),)
+
+        out = tensor.set_subtensor(out[indices], tt)
+        offset += tt.shape[axis]
+
+    return out
+
+"""
